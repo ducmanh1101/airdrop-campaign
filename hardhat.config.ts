@@ -1,41 +1,37 @@
 import "@nomicfoundation/hardhat-toolbox";
+import dotenv from "dotenv";
+import { HDNodeWallet } from "ethers";
+import "hardhat-contract-sizer";
 import "hardhat-deploy";
 import type { HardhatUserConfig } from "hardhat/config";
-import { vars } from "hardhat/config";
 import type { NetworkUserConfig } from "hardhat/types";
 
-import "./tasks/accounts";
-import "./tasks/lock";
+import "./tasks/airdrop";
 
-// Run 'npx hardhat vars setup' to see the list of variables that need to be set
+dotenv.config();
 
-const mnemonic: string = vars.get("MNEMONIC");
-const infuraApiKey: string = vars.get("INFURA_API_KEY");
+const mnemonic: string = process.env.MNEMONIC!;
+const wallet = HDNodeWallet.fromPhrase(mnemonic);
+console.log("ADMIN WALLET ADDRESS", wallet.address);
 
 const chainIds = {
-  "arbitrum-mainnet": 42161,
-  avalanche: 43114,
-  bsc: 56,
+  "berachain-testnet": 80069,
+  "berachain-mainnet": 80094,
   ganache: 1337,
   hardhat: 31337,
-  mainnet: 1,
-  "optimism-mainnet": 10,
-  "polygon-mainnet": 137,
-  "polygon-mumbai": 80001,
-  sepolia: 11155111,
 };
 
 function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
   let jsonRpcUrl: string;
   switch (chain) {
-    case "avalanche":
-      jsonRpcUrl = "https://api.avax.network/ext/bc/C/rpc";
+    case "berachain-mainnet":
+      jsonRpcUrl = "https://summer-frosty-choice.bera-mainnet.quiknode.pro/66d5d7779083aa80c958aa1f7ddedb2c752be67b";
       break;
-    case "bsc":
-      jsonRpcUrl = "https://bsc-dataseed1.binance.org";
+    case "berachain-testnet":
+      jsonRpcUrl = "https://bepolia.rpc.berachain.com/";
       break;
     default:
-      jsonRpcUrl = "https://" + chain + ".infura.io/v3/" + infuraApiKey;
+      throw new Error(`No JSON RPC URL for chain: ${chain}`);
   }
   return {
     accounts: {
@@ -55,21 +51,27 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: {
-      arbitrumOne: vars.get("ARBISCAN_API_KEY", ""),
-      avalanche: vars.get("SNOWTRACE_API_KEY", ""),
-      bsc: vars.get("BSCSCAN_API_KEY", ""),
-      mainnet: vars.get("ETHERSCAN_API_KEY", ""),
-      optimisticEthereum: vars.get("OPTIMISM_API_KEY", ""),
-      polygon: vars.get("POLYGONSCAN_API_KEY", ""),
-      polygonMumbai: vars.get("POLYGONSCAN_API_KEY", ""),
-      sepolia: vars.get("ETHERSCAN_API_KEY", ""),
+      "berachain-mainnet": process.env.BERASCAN_API_KEY!,
     },
+    customChains: [
+      {
+        network: "berachain-mainnet",
+        chainId: 80094,
+        urls: {
+          apiURL: "https://api.berascan.com/api",
+          browserURL: "https://berascan.com",
+        },
+      },
+    ],
   },
   gasReporter: {
     currency: "USD",
     enabled: process.env.REPORT_GAS ? true : false,
     excludeContracts: [],
     src: "./contracts",
+    token: "ETH",
+    gasPrice: 1.3, // Gwei
+    coinmarketcap: "2ff90ab8-eafe-43d7-8ba5-ac9086d7f327",
   },
   networks: {
     hardhat: {
@@ -77,6 +79,7 @@ const config: HardhatUserConfig = {
         mnemonic,
       },
       chainId: chainIds.hardhat,
+      allowBlocksWithSameTimestamp: true,
     },
     ganache: {
       accounts: {
@@ -85,14 +88,8 @@ const config: HardhatUserConfig = {
       chainId: chainIds.ganache,
       url: "http://localhost:8545",
     },
-    arbitrum: getChainConfig("arbitrum-mainnet"),
-    avalanche: getChainConfig("avalanche"),
-    bsc: getChainConfig("bsc"),
-    mainnet: getChainConfig("mainnet"),
-    optimism: getChainConfig("optimism-mainnet"),
-    "polygon-mainnet": getChainConfig("polygon-mainnet"),
-    "polygon-mumbai": getChainConfig("polygon-mumbai"),
-    sepolia: getChainConfig("sepolia"),
+    "berachain-testnet": getChainConfig("berachain-testnet"),
+    "berachain-mainnet": getChainConfig("berachain-mainnet"),
   },
   paths: {
     artifacts: "./artifacts",
@@ -101,24 +98,24 @@ const config: HardhatUserConfig = {
     tests: "./test",
   },
   solidity: {
-    version: "0.8.19",
+    version: "0.8.20",
     settings: {
       metadata: {
-        // Not including the metadata hash
-        // https://github.com/paulrberg/hardhat-template/issues/31
         bytecodeHash: "none",
       },
-      // Disable the optimizer when debugging
-      // https://hardhat.org/hardhat-network/#solidity-optimizer-support
       optimizer: {
         enabled: true,
-        runs: 800,
+        runs: 200,
       },
+      viaIR: true,
     },
   },
   typechain: {
     outDir: "types",
     target: "ethers-v6",
+  },
+  contractSizer: {
+    disambiguatePaths: false,
   },
 };
 
