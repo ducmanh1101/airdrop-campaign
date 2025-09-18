@@ -12,6 +12,7 @@ import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
  * @dev Contract for distributing ERC20 tokens via Merkle Tree airdrop campaigns
  */
 contract Airdrop is Ownable, ReentrancyGuard {
+    uint256 internal constant PRECISION = 1e6;
     using SafeERC20 for IERC20;
 
     struct Campaign {
@@ -19,6 +20,7 @@ contract Airdrop is Ownable, ReentrancyGuard {
         bytes32 merkleRoot; // Merkle root for verification
         uint256 totalAllocated; // Total amount deposited for this campaign
         uint256 totalClaimed; // Amount already claimed
+        uint256 feeRate; // Campaign fee rate
         uint256 endTime; // Campaign end time
         string name; // Campaign name
     }
@@ -53,6 +55,7 @@ contract Airdrop is Ownable, ReentrancyGuard {
      * @param _token Address of the ERC20 token to airdrop
      * @param _merkleRoot Merkle root for the airdrop recipients
      * @param _totalAllocated Total amount of tokens to deposit
+     * @param _feeRate Fee rate for the campaign (in percentage, e.g., 0.01 = 1%)
      * @param _duration Duration of the campaign in seconds
      * @param _name Name of the campaign
      */
@@ -60,6 +63,7 @@ contract Airdrop is Ownable, ReentrancyGuard {
         address _token,
         bytes32 _merkleRoot,
         uint256 _totalAllocated,
+        uint256 _feeRate,
         uint256 _duration,
         string memory _name
     ) external onlyOwner {
@@ -77,6 +81,7 @@ contract Airdrop is Ownable, ReentrancyGuard {
             merkleRoot: _merkleRoot,
             totalAllocated: _totalAllocated,
             totalClaimed: 0,
+            feeRate: _feeRate,
             endTime: endTime,
             name: _name
         });
@@ -104,12 +109,15 @@ contract Airdrop is Ownable, ReentrancyGuard {
         bytes32 leaf = keccak256(abi.encodePacked(msg.sender, _amount));
         require(MerkleProof.verify(_proof, campaign.merkleRoot, leaf), "Invalid proof");
 
+        uint256 feeAmount = (_amount * campaign.feeRate) / PRECISION;
+        uint256 netAmount = _amount - feeAmount;
+
         hasClaimed[_campaignId][msg.sender] = true;
-        campaign.totalClaimed += _amount;
+        campaign.totalClaimed += netAmount;
 
-        IERC20(campaign.token).safeTransfer(msg.sender, _amount);
+        IERC20(campaign.token).safeTransfer(msg.sender, netAmount);
 
-        emit TokensClaimed(_campaignId, msg.sender, _amount);
+        emit TokensClaimed(_campaignId, msg.sender, netAmount);
     }
 
     /**

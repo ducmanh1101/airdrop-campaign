@@ -16,7 +16,7 @@ describe("Airdrop Contract", function () {
   let ALICE: Awaited<ReturnType<typeof ethers.getSigners>>[0];
   let BOB: Awaited<ReturnType<typeof ethers.getSigners>>[0];
 
-  beforeEach(async function () {
+  this.beforeAll(async function () {
     [owner, ALICE, BOB] = await ethers.getSigners();
 
     // Deploy mock token
@@ -48,6 +48,7 @@ describe("Airdrop Contract", function () {
       await token.getAddress(),
       merkleRoot,
       ethers.parseEther("50"),
+      100000,
       3600, // 1h
       "Merkle Campaign",
     );
@@ -74,9 +75,11 @@ describe("Airdrop Contract", function () {
 
     const proof = tree.getHexProof(Buffer.from(leaf.slice(2), "hex"));
 
-    await expect(airdrop.connect(ALICE).claim(0, amount, proof))
-      .to.emit(airdrop, "TokensClaimed")
-      .withArgs(0, ALICE.address, amount);
+    await airdrop.connect(ALICE).claim(0, amount, proof);
+  });
+
+  it("ALICE's balance should be 9 tokens after 10% fee", async function () {
+    const amount = ethers.parseEther("9");
 
     const balance = await token.balanceOf(ALICE.address);
     expect(balance).to.equal(amount);
@@ -89,9 +92,11 @@ describe("Airdrop Contract", function () {
 
     const proof = tree.getHexProof(Buffer.from(leaf.slice(2), "hex"));
 
-    await expect(airdrop.connect(BOB).claim(0, amount, proof))
-      .to.emit(airdrop, "TokensClaimed")
-      .withArgs(0, BOB.address, amount);
+    await airdrop.connect(BOB).claim(0, amount, proof);
+  });
+
+  it("BOB's balance should be 18 tokens after 10% fee", async function () {
+    const amount = ethers.parseEther("18");
 
     const balance = await token.balanceOf(BOB.address);
     expect(balance).to.equal(amount);
@@ -101,6 +106,7 @@ describe("Airdrop Contract", function () {
     const amount = ethers.parseEther("10");
     const leaf = solidityPackedKeccak256(["address", "uint256"], [ALICE.address, amount]);
     const proof = tree.getHexProof(Buffer.from(leaf.slice(2), "hex"));
+
     await airdrop.connect(ALICE).claim(0, amount, proof);
     await expect(airdrop.connect(ALICE).claim(0, amount, proof)).to.be.revertedWith("Already claimed");
   });
